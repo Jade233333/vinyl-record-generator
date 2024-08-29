@@ -18,10 +18,12 @@ def to8bit(samples):
                               channels=audio.channels
                               )
     audio_8bit.export(f"{filename.split(".")[0]}_8bit.wav", format="wav")
+    np.savetxt(f"{filename.split(".")[0]}_8bit.out", samples_8bit, fmt="%d")
 
 
 def to4bit(samples):
     # try to reconstruct to 4 bit
+    samples_origin_4bit = ((samples / 2**12).astype(np.int8)).astype(np.int8)
     samples_4bit = ((samples / 2**12).astype(np.int8) * 2**4).astype(np.int8)
     audio_4bit = AudioSegment(samples_4bit.tobytes(),
                               frame_rate=audio.frame_rate,
@@ -29,6 +31,7 @@ def to4bit(samples):
                               channels=audio.channels
                               )
     audio_4bit.export(f"{filename.split(".")[0]}_4bit.wav", format="wav")
+    np.savetxt(f"{filename.split(".")[0]}_4bit.out", samples_origin_4bit, fmt="%d")
 
 
 # Some tests
