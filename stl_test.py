@@ -22,8 +22,8 @@ groove_width = np.array([1, 2, 3])  # Groove width in pixels
 
 # Scaling factors
 microns_per_inch = 25400
-dpi = 600
-microns_per_layer = 16
+dpi = 254
+microns_per_layer = 80
 
 # Convert units
 # Convert units
