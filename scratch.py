@@ -22,3 +22,4 @@ def modify_depth(original, top):
 depth_sequence = read_depth_sequence("final_4bit.out")
 print(depth_sequence)
 print(np.max(modify_depth(depth_sequence, 1)))
+print(np.min(modify_depth(depth_sequence, 1)))
