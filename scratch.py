@@ -4,7 +4,18 @@ from stl import mesh  # for stl file generation
 # from testing preview
 
 
+# constants
+outside_demension = 150.8
+starting_radius = 146.05
+ending_radius = 60.3
+thickness = 1.9
+center_hole_radius = 3.63
+groove_width = 0.056
+groove_depth = 0.048
+
 # read depth data from txt file
+
+
 def read_depth_sequence(file_path):
     with open(file_path, "r") as file:
         sequence = [int(line.strip()) for line in file]
@@ -18,8 +29,7 @@ def modify_depth(original, top):
     return modified
 
 
-# testing
-depth_sequence = read_depth_sequence("final_4bit.out")
-print(depth_sequence)
-print(np.max(modify_depth(depth_sequence, 1)))
-print(np.min(modify_depth(depth_sequence, 1)))
+# z
+grooves_z = modify_depth(read_depth_sequence("final_4bit.out"))
+
+# test
