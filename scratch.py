@@ -12,6 +12,7 @@ thickness = 1.9
 center_hole_radius = 3.63
 groove_width = 0.056
 groove_depth = 0.048
+groove_distance = 1.12
 
 # read depth data from txt file
 
@@ -31,5 +32,12 @@ def modify_depth(original, top):
 
 # z
 grooves_z = modify_depth(read_depth_sequence("final_4bit.out"))
+
+
+# xy in polar form
+# groove
+num_grooves = int((starting_radius - ending_radius) / groove_distance)
+radii = np.linspace(starting_radius, ending_radius, num_grooves*10000)
+
 
 # test
