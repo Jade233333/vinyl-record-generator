@@ -4,7 +4,7 @@ from stl import mesh  # for stl file generation
 # from testing preview
 
 
-# constants
+# constants in mm
 outside_demension = 150.8
 starting_radius = 146.05
 ending_radius = 60.3
