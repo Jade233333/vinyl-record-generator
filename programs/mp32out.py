@@ -68,18 +68,18 @@ class AudioData:
 
 
 # Load from a file
-audio = AudioSegment.from_file("final.mp3")
+audio = AudioSegment.from_file("sources/final.mp3")
 audio_data = AudioData(audio_segment=audio)
 
 # Save original audio and samples
-audio_data.save_audio("original.wav")
-audio_data.save_samples("original.txt")
+audio_data.save_audio("output/original.wav")
+audio_data.save_samples("output/original.txt")
 
 # Convert to 8-bit and save
 audio_8bit = audio_data.to_8bit()
-audio_8bit.save_audio("8bit.wav")
-audio_8bit.save_samples("8bit.txt")
+audio_8bit.save_audio("output/8bit.wav")
+audio_8bit.save_samples("output/8bit.txt")
 
 # Resample to 22,050 Hz and save
 resampled_audio = audio_8bit.resample(22050)
-resampled_audio.save_audio("resampled_8bit.wav")
+resampled_audio.save_audio("output/resampled_8bit.wav")
