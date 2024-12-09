@@ -1,6 +1,5 @@
 # import necessary libraries
 import numpy as np  # for data manipulation
-from stl import mesh  # for stl file generation
 # from testing preview
 
 
@@ -13,6 +12,12 @@ center_hole_radius = 3.63
 groove_width = 0.056
 groove_depth = 0.048
 groove_distance = 1.12
+
+
+# variables
+rpm = 45
+groove_spacing = 1
+
 
 # read depth data from txt file
 
