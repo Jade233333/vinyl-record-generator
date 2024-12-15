@@ -1,48 +1,52 @@
-# import necessary libraries
-import numpy as np  # for data manipulation
-# from testing preview
-
-
-# constants in mm
-outside_demension = 150.8
-starting_radius = 146.05
-ending_radius = 60.3
-thickness = 1.9
-center_hole_radius = 3.63
-groove_width = 0.056
-groove_depth = 0.048
-groove_distance = 1.12
-
-
-# variables
-rpm = 45
-groove_spacing = 1
+import numpy as np
 
 
 # read depth data from txt file
-
-
 def read_depth_sequence(file_path):
     with open(file_path, "r") as file:
         sequence = [int(line.strip()) for line in file]
     return np.array(sequence)
 
 
-# modify depth sequence to distance below the top surface
-def modify_depth(original, top):
-    min_value = np.min(original)
-    modified = original - min_value + top
-    return modified
+# convert sequence to z coordination
+def modify_depth(original):
+    max_value = np.max(original)
+    negative = original - max_value
+    specialized = negative * groove_step
+    down_shift = specialized + groove_top
+    return down_shift
+
+
+# variables in mm
+outside_demension = 150.8
+max_radius = 146.05
+min_radius = 60.3
+thickness = 1.9
+center_hole_radius = 3.63
+rpm = 45
+time_sec = 90
+
+audio_raw = read_depth_sequence("output/final_4bit.out")
+groove_width = 0.075
+groove_min_depth = 0.045
+groove_spacing = 0.75
+groove_step = 0.015
+
+# calculation
+groove_top = thickness - groove_min_depth
+rps = rpm / 60
+num_grooves = time_sec * rps
+starting_radius = max_radius
+ending_radius = max_radius - (groove_spacing * num_grooves)
+num_samples = np.size(audio_raw)
 
 
 # z
-grooves_z = modify_depth(read_depth_sequence("final_4bit.out"))
-
+grooves_z = modify_depth(audio_raw)
 
 # xy in polar form
-# groove
-num_grooves = int((starting_radius - ending_radius) / groove_distance)
-radii = np.linspace(starting_radius, ending_radius, num_grooves*10000)
+# groovez
+radii = np.linspace(starting_radius, ending_radius, num_samples)
 
 
 # test
