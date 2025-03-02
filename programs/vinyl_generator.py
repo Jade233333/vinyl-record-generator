@@ -61,7 +61,7 @@ audio_raw = read_depth_sequence("output/4bit_5500hz.txt")
 groove_spacing = 0.8
 groove_min_depth = 0.04
 groove_width = 0.8
-groove_step = z_accuracy * 2
+groove_step = z_accuracy
 
 groove_top = thickness - groove_min_depth
 groove_rounds = time_sec * rps
@@ -112,7 +112,7 @@ def create_groove_surface():
         )
     )
 
-    fake_radius = max_depth / np.sqrt(2)
+    fake_radius = max_depth * 1.5
     print(fake_radius)
     # Create polyline from points
     poly = pv.PolyData()
@@ -134,15 +134,14 @@ def create_groove_surface():
     return groove.triangulate().clean()
 
 
-# 3. Combine base and grooves
 def combine_meshes(base, groove):
-    # Use your existing vertex quantization for alignment
-    groove.points[:, :2] = np.round(groove.points[:, :2] / xy_accuracy) * xy_accuracy
-    groove.points[:, 2] = np.round(groove.points[:, 2] / z_accuracy) * z_accuracy
+    # Ensure both meshes are triangulated and clean
+    base = base.triangulate().clean()
+    groove = groove.triangulate().clean()
 
-    # Merge instead of boolean operation
-    combined = base.merge(groove, merge_points=True, tolerance=xy_accuracy)
-    return combined.clean()
+    # Perform boolean subtraction instead of merge
+    final_mesh = base.boolean_difference(groove, tolerance=max(xy_accuracy, z_accuracy))
+    return final_mesh
 
 
 # Main execution
@@ -164,20 +163,20 @@ if __name__ == "__main__":
     # Add this after your base mesh and groove mesh creation, but before combining
 
     # Plot base mesh
-    p = pv.Plotter()
-    p.add_mesh(base_mesh, color="tan", show_edges=True, opacity=0.8)
-    p.add_text("Base Mesh", font_size=20)
-    p.show(cpos="xy")
-
-    # Plot groove mesh
-    p = pv.Plotter()
-    p.add_mesh(groove_mesh, color="red", show_edges=True, opacity=1.0)
-    p.add_text("Groove Mesh", font_size=20)
-    p.show(cpos="xy")
-
-    # Plot cross-section view
-    p = pv.Plotter()
-    p.add_mesh(base_mesh, color="tan", show_edges=True, opacity=0.3)
-    p.add_mesh(groove_mesh, color="red", show_edges=True, opacity=0.8)
-    p.add_text("Combined View (Transparent Base)", font_size=20)
-    p.show(cpos="xz")
+    # p = pv.Plotter()
+    # p.add_mesh(base_mesh, color="tan", show_edges=True, opacity=0.8)
+    # p.add_text("Base Mesh", font_size=20)
+    # p.show(cpos="xy")
+    #
+    # # Plot groove mesh
+    # p = pv.Plotter()
+    # p.add_mesh(groove_mesh, color="red", show_edges=True, opacity=1.0)
+    # p.add_text("Groove Mesh", font_size=20)
+    # p.show(cpos="xy")
+    #
+    # # Plot cross-section view
+    # p = pv.Plotter()
+    # p.add_mesh(base_mesh, color="tan", show_edges=True, opacity=0.3)
+    # p.add_mesh(groove_mesh, color="red", show_edges=True, opacity=0.8)
+    # p.add_text("Combined View (Transparent Base)", font_size=20)
+    # p.show(cpos="xz")
