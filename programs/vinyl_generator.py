@@ -113,6 +113,7 @@ def create_groove_surface():
     )
 
     fake_radius = max_depth / np.sqrt(2)
+    print(fake_radius)
     # Create polyline from points
     poly = pv.PolyData()
     poly.points = points
@@ -148,9 +149,11 @@ def combine_meshes(base, groove):
 if __name__ == "__main__":
     # Create base mesh
     base_mesh = create_base_mesh()
+    base_mesh.save("output/base.stl")
 
     # Create groove surface
     groove_mesh = create_groove_surface()
+    groove_mesh.save("output/grooves.stl")
     # Combine using point quantization
     final_mesh = combine_meshes(base_mesh, groove_mesh)
 
