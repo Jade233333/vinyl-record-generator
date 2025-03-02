@@ -61,7 +61,7 @@ audio_raw = read_depth_sequence("output/4bit_5500hz.txt")
 groove_spacing = 0.8
 groove_min_depth = 0.04
 groove_width = 0.8
-groove_step = z_accuracy
+groove_step = z_accuracy * 2
 
 groove_top = thickness - groove_min_depth
 groove_rounds = time_sec * rps
