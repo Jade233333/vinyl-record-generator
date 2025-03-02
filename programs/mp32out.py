@@ -66,6 +66,19 @@ class AudioData:
         )
         return AudioData(audio_4bit, samples_4bit)
 
+    def to_raw_4bit(self):
+        """
+        four bit, but lower volume(without doubling each sample)
+        """
+        samples_4bit = ((self.samples / 2**12).astype(np.int8)).astype(np.int8)
+        audio_4bit = AudioSegment(
+            samples_4bit.tobytes(),
+            frame_rate=self.audio.frame_rate,
+            sample_width=1,
+            channels=self.audio.channels,
+        )
+        return AudioData(audio_4bit, samples_4bit)
+
     def resample(self, new_sampling_rate):
         resampled_audio = self.audio.set_frame_rate(new_sampling_rate)
         resample_samples = np.array(resampled_audio.get_array_of_samples())
@@ -83,5 +96,5 @@ audio_data.save_samples("output/original.txt")
 # 4bit_5500hz
 audio_4bit = audio_data.to_4bit()
 resampled_audio = audio_4bit.resample(5500)
-resampled_audio.save_audio("output/4bit_5500hz.wav")
-resampled_audio.save_samples("output/4bit_5500hz.txt")
+resampled_audio.save_audio("output/4bit_5500hz_modified.wav")
+resampled_audio.save_samples("output/4bit_5500hz_modifed.txt")

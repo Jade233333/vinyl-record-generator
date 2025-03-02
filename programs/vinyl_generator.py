@@ -61,7 +61,6 @@ audio_raw = read_depth_sequence("output/4bit_5500hz.txt")
 groove_spacing = 0.8
 groove_min_depth = 0.04
 groove_width = 0.8
-bottom_offset_factor = 0.2  # e.g. 20% of half the groove width
 groove_step = z_accuracy
 
 groove_top = thickness - groove_min_depth
@@ -71,104 +70,111 @@ ending_radius = max_radius - (groove_spacing * groove_rounds)
 sample_count = np.size(audio_raw)
 angle_per_sample = groove_rounds * 2 * np.pi / sample_count
 
-groove_shift_value_top = groove_width / 2
-groove_shift_value_bottom = bottom_offset_factor * groove_width / 2
 
 # vertices
 groove_z_bottom = standardize_audio_depth(audio_raw)
-groove_z_top = np.full_like(groove_z_bottom, thickness)
+max_depth = thickness - np.min(groove_z_bottom)
 groove_radii = np.linspace(starting_radius, ending_radius, sample_count)
 groove_angles = angle_per_sample * np.arange(sample_count)
 
-groove_radii_inner_top = groove_radii - groove_shift_value_top
-groove_radii_outer_top = groove_radii + groove_shift_value_top
-groove_radii_inner_bottom = groove_radii - groove_shift_value_bottom
-groove_radii_outer_bottom = groove_radii + groove_shift_value_bottom
+###########################################################
+##################   Modified Geometry Synthesis  ##########
+############################################################
 
-groove_inner_top = vertices_coords_synthesis(
-    groove_radii_inner_top, groove_angles, xy_accuracy, groove_z_top
-)
-groove_outer_top = vertices_coords_synthesis(
-    groove_radii_outer_top, groove_angles, xy_accuracy, groove_z_top
-)
-groove_inner_bottom = vertices_coords_synthesis(
-    groove_radii_inner_bottom, groove_angles, xy_accuracy, groove_z_bottom
-)
-groove_outer_bottom = vertices_coords_synthesis(
-    groove_radii_outer_bottom, groove_angles, xy_accuracy, groove_z_bottom
-)
 
-# Define the number of cross-sections (samples along the groove)
-N = groove_inner_top.shape[0]
+# 1. Create the solid base with center hole (optimized version)
+def create_base_mesh():
+    solid = pv.Cylinder(
+        center=(0, 0, thickness / 2),
+        direction=(0, 0, 1),
+        radius=outer_dimension,
+        height=thickness,
+    ).triangulate()
 
-# Build the list of cross-section vertices in a consistent order.
-# Here we assume a closed loop per cross-section in the order:
-# [inner_top, inner_bottom, outer_bottom, outer_top]
-cross_sections = []
-for i in range(N):
-    cs = [
-        groove_inner_top[i],
-        groove_inner_bottom[i],
-        groove_outer_bottom[i],
-        groove_outer_top[i],
-    ]
-    cross_sections.append(cs)
+    hole = pv.Cylinder(
+        center=(0, 0, thickness / 2),
+        direction=(0, 0, 1),
+        radius=center_hole_radius,
+        height=thickness + 2,
+    ).triangulate()
 
-# Flatten the list of cross-sections into one big vertex array.
-vertices = np.array(cross_sections).reshape(-1, 3)
+    return solid.boolean_difference(hole).clean()
 
-# For each adjacent pair of cross-sections, create quad faces.
-# The quad connecting two adjacent cross-sections along edge j is defined by:
-# [i*4 + j, (i+1)*4 + j, (i+1)*4 + ((j+1)%4), i*4 + ((j+1)%4)]
-faces = []
-num_vertices_per_section = 4
 
-for i in range(N - 1):
-    for j in range(num_vertices_per_section):
-        j_next = (j + 1) % num_vertices_per_section
-        v0 = i * num_vertices_per_section + j
-        v1 = (i + 1) * num_vertices_per_section + j
-        v2 = (i + 1) * num_vertices_per_section + j_next
-        v3 = i * num_vertices_per_section + j_next
-        # Each quad face is defined as [4, v0, v1, v2, v3]
-        faces.append([4, v0, v1, v2, v3])
+# 2. Generate groove geometry as surface displacement
+def create_groove_surface():
+    # Create spiral path using your existing parameters
+    points = np.column_stack(
+        (
+            groove_radii * np.cos(groove_angles),
+            groove_radii * np.sin(groove_angles),
+            groove_z_bottom,  # Use your depth-modulated Z values
+        )
+    )
 
-# Convert the list of faces to a flat numpy array (VTK expects a flat list)
-flat_faces = np.hstack(faces)
+    fake_radius = max_depth / np.sqrt(2)
+    # Create polyline from points
+    poly = pv.PolyData()
+    poly.points = points
+    cells = np.full((len(points) - 1, 3), 2, dtype=np.int_)
+    cells[:, 1] = np.arange(0, len(points) - 1, dtype=np.int_)
+    cells[:, 2] = np.arange(1, len(points), dtype=np.int_)
+    poly.lines = cells
 
-# Create the PyVista PolyData mesh.
-groove_mesh = pv.PolyData(vertices, flat_faces).triangulate()
-groove_mesh.save("output/groove.stl")
+    # Create tube with variable radius using your groove width parameters
+    groove = poly.tube(radius=fake_radius, n_sides=4, capping=False).rotate_z(
+        45, inplace=True
+    )
 
-# Visualize to check if everything is connected as expected.
-# groove_mesh.plot(show_edges=True)
-# pl = pv.Plotter()
-# _ = pl.add_mesh(groove_mesh)
-# pl.camera.zoom(2.0)
-# pl.show()
+    # Apply your quantization
+    groove.points[:, :2] = np.round(groove.points[:, :2] / xy_accuracy) * xy_accuracy
+    groove.points[:, 2] = np.round(groove.points[:, 2] / z_accuracy) * z_accuracy
 
-# Create a SOLID cylinder (no hole)
-solid_cylinder = pv.Cylinder(
-    center=(0, 0, thickness / 2),  # Center at mid-height
-    direction=(0, 0, 1),  # Align along Z-axis
-    radius=outer_dimension,
-    height=thickness,
-    resolution=150,
-).triangulate()
+    return groove.triangulate().clean()
 
-# Create a smaller cylinder for the center hole
-hole_cylinder = pv.Cylinder(
-    center=(0, 0, thickness / 2),
-    direction=(0, 0, 1),
-    radius=center_hole_radius,
-    height=thickness + 2,  # Extra height to ensure clean subtraction
-    resolution=150,
-).triangulate()
 
-# Subtract the hole from the main cylinder
-vinyl_base = solid_cylinder.boolean_difference(hole_cylinder)
-vinyl = vinyl_base.boolean_difference(groove_mesh)
+# 3. Combine base and grooves
+def combine_meshes(base, groove):
+    # Use your existing vertex quantization for alignment
+    groove.points[:, :2] = np.round(groove.points[:, :2] / xy_accuracy) * xy_accuracy
+    groove.points[:, 2] = np.round(groove.points[:, 2] / z_accuracy) * z_accuracy
 
-# Save and visualize
-vinyl.save("output/vinyl.stl")
-vinyl.plot(show_edges=True, cpos="xz")
+    # Merge instead of boolean operation
+    combined = base.merge(groove, merge_points=True, tolerance=xy_accuracy)
+    return combined.clean()
+
+
+# Main execution
+if __name__ == "__main__":
+    # Create base mesh
+    base_mesh = create_base_mesh()
+
+    # Create groove surface
+    groove_mesh = create_groove_surface()
+    # Combine using point quantization
+    final_mesh = combine_meshes(base_mesh, groove_mesh)
+
+    # Export results
+    final_mesh.save("output/vinyl_with_grooves.stl")
+    print(f"Final mesh: {final_mesh.n_points} points, {final_mesh.n_cells} cells")
+
+    # Add this after your base mesh and groove mesh creation, but before combining
+
+    # Plot base mesh
+    p = pv.Plotter()
+    p.add_mesh(base_mesh, color="tan", show_edges=True, opacity=0.8)
+    p.add_text("Base Mesh", font_size=20)
+    p.show(cpos="xy")
+
+    # Plot groove mesh
+    p = pv.Plotter()
+    p.add_mesh(groove_mesh, color="red", show_edges=True, opacity=1.0)
+    p.add_text("Groove Mesh", font_size=20)
+    p.show(cpos="xy")
+
+    # Plot cross-section view
+    p = pv.Plotter()
+    p.add_mesh(base_mesh, color="tan", show_edges=True, opacity=0.3)
+    p.add_mesh(groove_mesh, color="red", show_edges=True, opacity=0.8)
+    p.add_text("Combined View (Transparent Base)", font_size=20)
+    p.show(cpos="xz")
