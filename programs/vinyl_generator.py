@@ -140,7 +140,9 @@ def combine_meshes(base, groove):
     groove = groove.triangulate().clean()
 
     # Perform boolean subtraction instead of merge
-    final_mesh = base.boolean_difference(groove, tolerance=max(xy_accuracy, z_accuracy))
+    final_mesh = base.boolean_difference(
+        groove, tolerance=max(xy_accuracy, z_accuracy), progress_bar=True
+    )
     return final_mesh
 
 
