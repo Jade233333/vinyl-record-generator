@@ -56,19 +56,32 @@ def generate_groove(
     x = r * np.cos(theta)
     y = r * np.sin(theta)
     reversed_z = groove_z[::-1]
-    z = extend_backward_like(reversed_z, x, groove_top)
+    z = extend_like(
+        reversed_z, x, compensation_length=samples_per_round * 2, constant=groove_top
+    )
+
     return np.column_stack((x, y, z))
 
 
-def extend_backward_like(array, template, constant=0):
+def extend_like(array, template, compensation_length, constant=0):
     target_length = len(template)
     current_length = len(array)
+
+    # Add the compensation block after the existing data
+    compensation_block = np.full(compensation_length, constant)
+    array_with_compensation = np.concatenate((array, compensation_block))
+
+    # Recalculate length after adding the compensation block
+    current_length = len(array_with_compensation)
     difference = target_length - current_length
 
     if difference <= 0:
-        return array[:target_length]
+        # Trim the array if it's longer than the target
+        return array_with_compensation[:target_length]
     else:
-        return np.pad(array, (difference, 0), mode="constant", constant_values=constant)
+        # Pad the difference before the array
+        padding = np.full(difference, constant)
+        return np.concatenate((padding, array_with_compensation))
 
 
 rpm = 45
@@ -89,12 +102,12 @@ total_rounds = rps * duration
 samples_per_round = int(total_samples / total_rounds)
 
 # Generate both spirals with a vertical offset
-spiral1 = generate_spiral(
+edge_spiral = generate_spiral(
     outer_radius, inner_radius, groove_spacing, samples_per_round, z=thickness
 )
-spiral2 = generate_groove(
+groove_spiral = generate_groove(
     outer_radius,
-    (inner_radius + groove_spacing / 2),
+    inner_radius + groove_spacing / 2,
     groove_spacing,
     samples_per_round,
     groove_z=groove_z,
@@ -102,27 +115,36 @@ spiral2 = generate_groove(
 )
 
 # Truncate to the same length
-min_length = min(len(spiral1), len(spiral2))
-spiral1 = spiral1[:min_length]
-spiral2 = spiral2[:min_length]
+min_length = min(len(edge_spiral), len(groove_spiral))
+edge_spiral = edge_spiral[:min_length]
+groove_spiral = groove_spiral[:min_length]
 
-# Combine points from both spirals
-points = np.vstack((spiral1, spiral2))
+points = np.vstack((edge_spiral, groove_spiral))
 
-faces = []
+faces_outer = []
+faces_inner = []
 for i in range(min_length - 1):
-    faces.extend([4, i, i + min_length, i + 1 + min_length, i + 1])
+    faces_outer.extend([4, i, i + min_length, i + 1 + min_length, i + 1])
 
 for i in range(min_length - 1 - samples_per_round):
-    faces.extend(
+    faces_inner.extend(
         [
             4,
             i + min_length,
             samples_per_round + i,
-            i + min_length + 1,
             samples_per_round + i + 1,
+            i + min_length + 1,
         ]
     )
+
+faces = faces_inner + faces_outer
+
+# surface1 = pv.PolyData(points, faces=np.array(faces_edge2groove))
+# surface2 = pv.PolyData(points, faces=np.array(faces_groove2edge))
+# pl1 = pv.Plotter()
+# pl2 = pv.Plotter()
+# pl1.add_mesh(surface1, show_edges=False, color="blue")
+# pl2.add_mesh(surface2, show_edges=False, color="red")
 
 top_surface = pv.PolyData(points, faces=np.array(faces))
 min_z = find_trough(top_surface)
@@ -141,6 +163,3 @@ merged = merged.clean()
 
 merged.save("output/manual_merged_solid_disk.stl")
 extruded_surface.save("surface.stl")
-pl = pv.Plotter()
-pl.add_mesh(merged, show_edges=False, color="lightblue")
-pl.show()
