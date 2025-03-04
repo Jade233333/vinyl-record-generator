@@ -94,7 +94,7 @@ audio_data.save_audio("output/original.wav")
 audio_data.save_samples("output/original.txt")
 
 # 4bit_5500hz
-audio_4bit = audio_data.to_4bit()
-resampled_audio = audio_4bit.resample(5500)
-resampled_audio.save_audio("output/4bit_5500hz_modified.wav")
-resampled_audio.save_samples("output/4bit_5500hz_modifed.txt")
+audio_4bit = audio_data.to_raw_4bit()
+resampled_audio = audio_4bit.resample(550)
+resampled_audio.save_audio("output/4bit_550hz.wav")
+resampled_audio.save_samples("output/4bit_550hz.txt")
