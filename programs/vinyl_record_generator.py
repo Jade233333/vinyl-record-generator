@@ -19,6 +19,7 @@ def standardize_audio_depth(original):
     return down_shift
 
 
+# find minimum hight in a mesh
 def find_trough(mesh):
     z_coords = mesh.points[:, 2]
     min_z = np.min(z_coords)
@@ -26,6 +27,7 @@ def find_trough(mesh):
     return min_z
 
 
+# find maximum hight in a mesh
 def find_crest(mesh):
     z_coords = mesh.points[:, 2]
     max_z = np.min(z_coords)
@@ -63,7 +65,11 @@ def generate_groove(
     return np.column_stack((x, y, z))
 
 
-def extend_like(array, template, compensation_length, constant=0):
+def extend_like(array, template, compensation_length, constant):
+    """
+    inspired by numpy.full_like
+    extend an existing array to the length of template arrary in both direction
+    """
     target_length = len(template)
     current_length = len(array)
 
@@ -84,6 +90,14 @@ def extend_like(array, template, compensation_length, constant=0):
         return np.concatenate((padding, array_with_compensation))
 
 
+def align_array(array1, array2):
+    min_length = min(len(array1), len(array2))
+    array1 = array1[:min_length]
+    array2 = array2[:min_length]
+    return array1, array2, min_length
+
+
+# variables
 rpm = 45
 rps = rpm / 60
 sampling_rate = 5500
@@ -101,7 +115,8 @@ total_samples = len(groove_z)
 total_rounds = rps * duration
 samples_per_round = int(total_samples / total_rounds)
 
-# Generate both spirals with a vertical offset
+
+# use two spirals to constract a surface
 edge_spiral = generate_spiral(
     outer_radius, inner_radius, groove_spacing, samples_per_round, z=thickness
 )
@@ -114,18 +129,17 @@ groove_spiral = generate_groove(
     groove_top=thickness,
 )
 
-# Truncate to the same length
-min_length = min(len(edge_spiral), len(groove_spiral))
-edge_spiral = edge_spiral[:min_length]
-groove_spiral = groove_spiral[:min_length]
+# truncate two spirals to the same length
+edge_spiral, groove_spiral, min_length = align_array(edge_spiral, groove_spiral)
+# create an arrary to store coords of vertices
+vertices = np.vstack((edge_spiral, groove_spiral))
 
-points = np.vstack((edge_spiral, groove_spiral))
-
+# constract faces from edge_spiral to bot the groove_spiral inside and outside
+# extrude
 faces_outer = []
 faces_inner = []
 for i in range(min_length - 1):
     faces_outer.extend([4, i, i + min_length, i + 1 + min_length, i + 1])
-
 for i in range(min_length - 1 - samples_per_round):
     faces_inner.extend(
         [
@@ -136,30 +150,22 @@ for i in range(min_length - 1 - samples_per_round):
             i + min_length + 1,
         ]
     )
-
 faces = faces_inner + faces_outer
-
-# surface1 = pv.PolyData(points, faces=np.array(faces_edge2groove))
-# surface2 = pv.PolyData(points, faces=np.array(faces_groove2edge))
-# pl1 = pv.Plotter()
-# pl2 = pv.Plotter()
-# pl1.add_mesh(surface1, show_edges=False, color="blue")
-# pl2.add_mesh(surface2, show_edges=False, color="red")
-
-top_surface = pv.PolyData(points, faces=np.array(faces))
-min_z = find_trough(top_surface)
-max_z = find_crest(top_surface)
-
-extruded_surface = top_surface.extrude((0, 0, -(max_z - min_z)), capping=True)
-min_z = find_trough(extruded_surface)
-
-bottom_surface = pv.Disc(
-    center=(0, 0, 0), inner=0, outer=outer_radius, r_res=200, c_res=200
+top_surface = pv.PolyData(vertices, faces=np.array(faces))
+extruded_surface = top_surface.extrude(
+    (0, 0, -(find_crest(top_surface) - find_trough(top_surface))), capping=True
 )
-extruded_bottom = bottom_surface.extrude((0, 0, min_z), capping=True)
+
+# create bottom from a flat Disc
+#  extrude
+bottom_surface = pv.Disc(
+    center=(0, 0, 0), inner=inner_radius, outer=outer_radius, r_res=200, c_res=200
+)
+extruded_bottom = bottom_surface.extrude(
+    (0, 0, find_trough(extruded_surface)), capping=True
+)
+
+# merge top and bottom surface, done
 merged = extruded_surface.merge(extruded_bottom)
-
 merged = merged.clean()
-
 merged.save("output/manual_merged_solid_disk.stl")
-extruded_surface.save("surface.stl")
