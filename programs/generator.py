@@ -59,7 +59,7 @@ def generate_groove(
     y = r * np.sin(theta)
     reversed_z = groove_z[::-1]
     z = extend_like(
-        reversed_z, x, compensation_length=samples_per_round * 2, constant=groove_top
+        reversed_z, x, compensation_length=samples_per_round * 3, constant=groove_top
     )
 
     return np.column_stack((x, y, z))
@@ -101,10 +101,10 @@ def align_array(array1, array2):
 rpm = 45
 rps = rpm / 60
 sampling_rate = 5500
-outer_radius = 150.8
+outer_radius = 100
 inner_radius = 3.65
 groove_spacing = 0.8
-thickness = 1.9
+thickness = 2
 groove_step = 0.05
 groove_top = thickness - 2 * groove_step
 audio_raw = read_depth_sequence("output/4bit_5500hz.txt")
@@ -153,7 +153,7 @@ for i in range(min_length - 1 - samples_per_round):
 faces = faces_inner + faces_outer
 top_surface = pv.PolyData(vertices, faces=np.array(faces))
 extruded_surface = top_surface.extrude(
-    (0, 0, -(find_crest(top_surface) - find_trough(top_surface))), capping=True
+    (0, 0, -0.5 - (find_crest(top_surface) - find_trough(top_surface))), capping=True
 )
 
 # create bottom from a flat Disc
@@ -161,9 +161,11 @@ extruded_surface = top_surface.extrude(
 bottom_surface = pv.Disc(
     center=(0, 0, 0), inner=inner_radius, outer=outer_radius, r_res=200, c_res=200
 )
-extruded_bottom = bottom_surface.extrude((0, 0, find_trough(top_surface)), capping=True)
+extruded_bottom = bottom_surface.extrude(
+    (0, 0, find_trough(top_surface) - 0.1), capping=True
+)
 
 # merge top and bottom surface, done
-merged = extruded_surface.merge(extruded_bottom)
+merged = extruded_bottom.merge(extruded_surface)
 merged = merged.clean()
-merged.save("output/disk.stl")
+merged.save("output/record.stl")
