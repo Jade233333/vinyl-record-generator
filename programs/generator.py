@@ -35,7 +35,9 @@ def find_crest(mesh):
     return max_z
 
 
-def generate_spiral(outer_radius, inner_radius, increment, samples_per_round, z):
+def generate_spiral(
+    outer_radius, inner_radius, increment, samples_per_round, spiral_top
+):
     total_rounds = (outer_radius - inner_radius) / increment
     theta_max = total_rounds * 2 * np.pi
     num_points = int(total_rounds * samples_per_round)
@@ -43,12 +45,18 @@ def generate_spiral(outer_radius, inner_radius, increment, samples_per_round, z)
     r = inner_radius + increment / (2 * np.pi) * theta
     x = r * np.cos(theta)
     y = r * np.sin(theta)
-    z = np.full_like(x, z)
+    z = np.full_like(x, spiral_top)
     return np.column_stack((x, y, z))
 
 
 def generate_groove(
-    outer_radius, inner_radius, increment, samples_per_round, groove_top, groove_z
+    outer_radius,
+    inner_radius,
+    increment,
+    samples_per_round,
+    groove_top,
+    spiral_top,
+    groove_z,
 ):
     total_rounds = (outer_radius - inner_radius) / increment
     theta_max = total_rounds * 2 * np.pi
@@ -59,13 +67,19 @@ def generate_groove(
     y = r * np.sin(theta)
     reversed_z = groove_z[::-1]
     z = extend_like(
-        reversed_z, x, compensation_length=samples_per_round * 3, constant=groove_top
+        array=reversed_z,
+        template=x,
+        compensation_length=samples_per_round * 3,
+        forward_constant=groove_top,
+        backward_constant=spiral_top,
     )
 
     return np.column_stack((x, y, z))
 
 
-def extend_like(array, template, compensation_length, constant):
+def extend_like(
+    array, template, compensation_length, forward_constant, backward_constant
+):
     """
     inspired by numpy.full_like
     extend an existing array to the length of template arrary in both direction
@@ -74,7 +88,7 @@ def extend_like(array, template, compensation_length, constant):
     current_length = len(array)
 
     # Add the compensation block after the existing data
-    compensation_block = np.full(compensation_length, constant)
+    compensation_block = np.full(compensation_length, forward_constant)
     array_with_compensation = np.concatenate((array, compensation_block))
 
     # Recalculate length after adding the compensation block
@@ -86,7 +100,7 @@ def extend_like(array, template, compensation_length, constant):
         return array_with_compensation[:target_length]
     else:
         # Pad the difference before the array
-        padding = np.full(difference, constant)
+        padding = np.full(difference, backward_constant)
         return np.concatenate((padding, array_with_compensation))
 
 
@@ -118,15 +132,20 @@ samples_per_round = int(total_samples / total_rounds)
 
 # use two spirals to constract a surface
 edge_spiral = generate_spiral(
-    outer_radius, inner_radius, groove_spacing, samples_per_round, z=thickness
+    outer_radius=outer_radius,
+    inner_radius=inner_radius,
+    increment=groove_spacing,
+    samples_per_round=samples_per_round,
+    spiral_top=thickness,
 )
 groove_spiral = generate_groove(
-    outer_radius,
-    inner_radius + groove_spacing / 2,
-    groove_spacing,
-    samples_per_round,
+    outer_radius=outer_radius,
+    inner_radius=inner_radius + groove_spacing / 2,
+    increment=groove_spacing,
+    samples_per_round=samples_per_round,
     groove_z=groove_z,
-    groove_top=thickness,
+    groove_top=groove_top,
+    spiral_top=thickness,
 )
 
 # truncate two spirals to the same length
