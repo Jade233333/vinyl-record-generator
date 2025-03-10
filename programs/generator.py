@@ -102,11 +102,11 @@ rpm = 45
 rps = rpm / 60
 sampling_rate = 5500
 outer_radius = 150.8
-inner_radius = 3.64
+inner_radius = 3.65
 groove_spacing = 0.8
 thickness = 1.9
-groove_top = thickness - 0.04
-groove_step = 0.02
+groove_step = 0.05
+groove_top = thickness - 2 * groove_step
 audio_raw = read_depth_sequence("output/4bit_5500hz.txt")
 groove_z = standardize_audio_depth(audio_raw)
 audio = AudioSegment.from_file("output/4bit_5500hz.wav")
@@ -161,11 +161,9 @@ extruded_surface = top_surface.extrude(
 bottom_surface = pv.Disc(
     center=(0, 0, 0), inner=inner_radius, outer=outer_radius, r_res=200, c_res=200
 )
-extruded_bottom = bottom_surface.extrude(
-    (0, 0, find_trough(extruded_surface)), capping=True
-)
+extruded_bottom = bottom_surface.extrude((0, 0, find_trough(top_surface)), capping=True)
 
 # merge top and bottom surface, done
 merged = extruded_surface.merge(extruded_bottom)
 merged = merged.clean()
-merged.save("output/manual_merged_solid_disk.stl")
+merged.save("output/disk.stl")
