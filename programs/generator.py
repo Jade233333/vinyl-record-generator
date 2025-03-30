@@ -41,8 +41,8 @@ def generate_spiral(
     total_rounds = (outer_radius - inner_radius) / increment
     theta_max = total_rounds * 2 * np.pi
     num_points = int(total_rounds * samples_per_round)
-    theta = np.linspace(0, theta_max, num_points)
-    r = inner_radius + increment / (2 * np.pi) * theta
+    theta = np.linspace(0, -theta_max, num_points)
+    r = inner_radius + increment / (2 * np.pi) * (-theta)
     x = r * np.cos(theta)
     y = r * np.sin(theta)
     z = np.full_like(x, spiral_top)
@@ -61,8 +61,8 @@ def generate_groove(
     total_rounds = (outer_radius - inner_radius) / increment
     theta_max = total_rounds * 2 * np.pi
     num_points = int(total_rounds * samples_per_round)
-    theta = np.linspace(0, theta_max, num_points)
-    r = inner_radius + increment / (2 * np.pi) * theta
+    theta = np.linspace(0, -theta_max, num_points)
+    r = inner_radius + increment / (2 * np.pi) * (-theta)
     x = r * np.cos(theta)
     y = r * np.sin(theta)
     reversed_z = groove_z[::-1]
