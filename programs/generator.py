@@ -1,20 +1,36 @@
+from typing import Optional, Literal
 import numpy as np
 import pyvista as pv
 from pydub import AudioSegment
+from mp32out import AudioData
 
 
 class AudioHandler:
-    def __init__(self, txt_path, wav_path):
-        self.txt_path = txt_path
-        self.wav_path = wav_path
-        self.displacement_raw = self.read_depth_sequence()
-        self.audio = AudioSegment.from_file(self.wav_path)
+    def __init__(
+        self,
+        audio_path,
+        target_bit_rate: Optional[Literal["4bit", "8bit"]],
+        target_sampling_rate=None,
+    ):
+        self.audio_path = audio_path
+        self.audio = AudioSegment.from_file(self.audio_path)
         self.duration = len(self.audio) / 1000.0
+        self.target_bit_rate = target_bit_rate
+        self.target_sampling_rate = target_sampling_rate
+        self.audio_data = AudioData(audio_segment=self.audio)
+        self._reduce_bit()
+        self._resmaple()
+        self.displacement_raw = self.audio_data.samples
 
-    def read_depth_sequence(self):
-        with open(self.txt_path, "r") as file:
-            sequence = [int(line.strip()) for line in file]
-        return np.array(sequence)
+    def _resmaple(self):
+        if self.target_sampling_rate is not None:
+            self.audio_data.resample(self.target_sampling_rate)
+
+    def _reduce_bit(self):
+        if self.target_bit_rate == "4bit":
+            self.audio_data.to_raw_4bit()
+        elif self.target_bit_rate == "8bit":
+            self.audio_data.to_8bit()
 
 
 class MeshGenerator:
@@ -41,11 +57,9 @@ class MeshGenerator:
         self.groove_top = (
             self.thickness - self.groove_buffer_coefficient * self.groove_step
         )
-        self.groove_z = self.displacement_to_groovez()
-        self.groove_spiral = self.generate_groove()
-        self.edge_spiral = self.generate_spiral()
+        self.groove_z = self._displacement_to_groovez()
 
-    def displacement_to_groovez(self):
+    def _displacement_to_groovez(self):
         original = self.wave_displacement
         max_value = np.max(original)
         down_shift = original - max_value
@@ -53,7 +67,7 @@ class MeshGenerator:
         groove_z = steplize + self.groove_top
         return groove_z
 
-    def generate_spiral(self):
+    def _generate_spiral(self):
         total_rounds = (self.outer_radius - self.inner_radius) / self.groove_spacing
         theta_max = total_rounds * 2 * np.pi
         num_points = int(total_rounds * self.samples_per_round)
@@ -64,7 +78,7 @@ class MeshGenerator:
         z = np.full_like(x, self.thickness)
         return np.column_stack((x, y, z))
 
-    def generate_groove(self):
+    def _generate_groove(self):
         total_rounds = (
             self.outer_radius - self.groove_inner_radius
         ) / self.groove_spacing
@@ -75,7 +89,7 @@ class MeshGenerator:
         x = r * np.cos(theta)
         y = r * np.sin(theta)
         reversed_z = self.groove_z[::-1]
-        z = self.extend_like(
+        z = self._extend_like(
             array=reversed_z,
             template=x,
             compensation_length=self.samples_per_round * 3,
@@ -85,7 +99,7 @@ class MeshGenerator:
         return np.column_stack((x, y, z))
 
     @staticmethod
-    def extend_like(
+    def _extend_like(
         array, template, compensation_length, forward_constant, backward_constant
     ):
         target_length = len(template)
@@ -101,11 +115,11 @@ class MeshGenerator:
             return np.concatenate((padding, array_with_compensation))
 
     @staticmethod
-    def align_array(array1, array2):
+    def _align_array(array1, array2):
         min_length = min(len(array1), len(array2))
         return array1[:min_length], array2[:min_length], min_length
 
-    def create_faces(self, min_length):
+    def _create_faces(self, min_length):
         faces_outer = []
         faces_inner = []
         # Build faces for outer surface
@@ -125,26 +139,28 @@ class MeshGenerator:
         return faces_inner + faces_outer
 
     @staticmethod
-    def find_trough(mesh):
+    def _find_trough(mesh):
         z_coords = mesh.points[:, 2]
         return np.min(z_coords)
 
     @staticmethod
-    def find_crest(mesh):
+    def _find_crest(mesh):
         z_coords = mesh.points[:, 2]
         return np.max(z_coords)
 
     def generate_mesh(self):
+        groove_spiral = self._generate_groove()
+        edge_spiral = self._generate_spiral()
         # Align the spiral arrays
-        edge_spiral_aligned, groove_spiral_aligned, min_length = self.align_array(
-            self.edge_spiral, self.groove_spiral
+        edge_spiral_aligned, groove_spiral_aligned, min_length = self._align_array(
+            edge_spiral, groove_spiral
         )
         vertices = np.vstack((edge_spiral_aligned, groove_spiral_aligned))
-        faces = self.create_faces(min_length)
+        faces = self._create_faces(min_length)
         # Create top surface and extrude it
         top_surface = pv.PolyData(vertices, faces=np.array(faces))
-        crest = self.find_crest(top_surface)
-        trough = self.find_trough(top_surface)
+        crest = self._find_crest(top_surface)
+        trough = self._find_trough(top_surface)
         surface_extrude_distance = crest - trough + 0.1
         extruded_surface = top_surface.extrude(
             (0, 0, -surface_extrude_distance), capping=True
@@ -172,33 +188,38 @@ class MeshGenerator:
 
 
 if __name__ == "__main__":
-    rpm = 45
-    rps = rpm / 60
-    groove_step = 0.05
-    thickness = 2
-    outer_radius = 100
-    inner_radius = 3.65
-    groove_spacing = 0.8
+    RPM = 78
+    RPS = RPM / 60
+    GROOVE_STEP = 0.05
+    THICKNESS = 2
+    OUTER_RADIUS = 100
+    INNER_RADIUS = 3.65
+    GROOVE_SPACING = 0.6
+    AUDIO_PATH = "sources/final.mp3"
+    TARGET_BIT_RATE = "4bit"
+    TARGET_SAMPLING_RATE = 550
+    GROOVE_BUFFER_COEFFICIENT = 3
 
     audio_data = AudioHandler(
-        txt_path="output/4bit_550hz.txt",
-        wav_path="output/4bit_550hz.wav",
+        audio_path=AUDIO_PATH,
+        target_bit_rate=TARGET_BIT_RATE,
+        target_sampling_rate=TARGET_SAMPLING_RATE,
     )
 
-    total_samples = len(audio_data.displacement_raw)
-    total_rounds = rps * audio_data.duration
-    samples_per_round = int(total_samples / total_rounds)
-    wave_displacement = audio_data.displacement_raw
+    TOTAL_SAMPLES = len(audio_data.displacement_raw)
+    TOTAL_ROUNDS = RPS * audio_data.duration
+    SAMPLES_PER_ROUND = int(TOTAL_SAMPLES / TOTAL_ROUNDS)
+    WAVE_DISPLACEMENT = audio_data.displacement_raw
 
     mesh_gen = MeshGenerator(
-        outer_radius=outer_radius,
-        inner_radius=inner_radius,
-        groove_spacing=groove_spacing,
-        samples_per_round=samples_per_round,
-        thickness=thickness,
-        groove_buffer_coefficient=3,
-        wave_displacement=wave_displacement,
-        groove_step=groove_step,
+        outer_radius=OUTER_RADIUS,
+        inner_radius=INNER_RADIUS,
+        groove_spacing=GROOVE_SPACING,
+        samples_per_round=SAMPLES_PER_ROUND,
+        thickness=THICKNESS,
+        groove_buffer_coefficient=GROOVE_BUFFER_COEFFICIENT,
+        wave_displacement=WAVE_DISPLACEMENT,
+        groove_step=GROOVE_STEP,
     )
     final_mesh = mesh_gen.generate_mesh()
     final_mesh.save("output/record.stl")

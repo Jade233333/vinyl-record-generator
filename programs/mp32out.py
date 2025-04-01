@@ -49,7 +49,7 @@ class AudioData:
             sample_width=1,
             channels=self.audio.channels,
         )
-        return AudioData(audio_8bit, samples_8bit)
+        self.audio, self.samples = audio_8bit, samples_8bit
 
     def to_4bit(self):
         """
@@ -64,7 +64,7 @@ class AudioData:
             sample_width=1,
             channels=self.audio.channels,
         )
-        return AudioData(audio_4bit, samples_4bit)
+        self.audio, self.samples = audio_4bit, samples_4bit
 
     def to_raw_4bit(self):
         """
@@ -77,24 +77,25 @@ class AudioData:
             sample_width=1,
             channels=self.audio.channels,
         )
-        return AudioData(audio_4bit, samples_4bit)
+        self.audio, self.samples = audio_4bit, samples_4bit
 
     def resample(self, new_sampling_rate):
         resampled_audio = self.audio.set_frame_rate(new_sampling_rate)
         resample_samples = np.array(resampled_audio.get_array_of_samples())
-        return AudioData(resampled_audio, resample_samples)
+        self.audio, self.samples = resampled_audio, resample_samples
 
 
-# Load from a file
-audio = AudioSegment.from_file("sources/final.mp3")
-audio_data = AudioData(audio_segment=audio)
+if __name__ == "__main__":
+    # Load from a file
+    audio = AudioSegment.from_file("sources/final.mp3")
+    audio_data = AudioData(audio_segment=audio)
 
-# Save original audio and samples
-audio_data.save_audio("output/original.wav")
-audio_data.save_samples("output/original.txt")
+    # Save original audio and samples
+    audio_data.save_audio("output/original.wav")
+    audio_data.save_samples("output/original.txt")
 
-# 4bit_5500hz
-audio_4bit = audio_data.to_raw_4bit()
-resampled_audio = audio_4bit.resample(550)
-resampled_audio.save_audio("output/4bit_550hz.wav")
-resampled_audio.save_samples("output/4bit_550hz.txt")
+    # 4bit_550hz
+    audio_data.to_raw_4bit()
+    audio_data.resample(550)
+    audio_data.save_audio("output/4bit_550hz.wav")
+    audio_data.save_samples("output/4bit_550hz.txt")
